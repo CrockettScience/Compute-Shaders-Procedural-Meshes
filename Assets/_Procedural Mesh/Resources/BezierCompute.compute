@@ -1,0 +1,22 @@
+#pragma kernel ComputeCurveFrames
+
+#define BEZIER_COMPUTE_SHADER
+
+#include "BezierInclude.hlsl"
+
+[numthreads(32, 1, 1)]
+void ComputeCurveFrames (uint3 id : SV_DispatchThreadID)
+{
+    BezierFrame frame = (BezierFrame) 0;
+    float4 tVector = _TVectors[id.x];
+    float4 rotation = QuaternionBezier(_ControlQuaternionsMatrix, tVector.z);
+    
+    frame.position = mul(mul(tVector, BEZIER_MATRIX), BEZIER_CONTROL_POINTS);
+    frame.tangent = normalize(mul(mul(tVector.yzw, DERIVATIVE_MATRIX), BEZIER_CONTROL_POINTS));
+    
+    //If we are correcting the frame, we use cross products to navigate our unit vectors. If not, we derive our frame from the rotation directly, which isn't guarenteed to be orthogonaL
+    frame.up = normalize(_FrameCorrection ?     cross(frame.tangent, QMul(float3(1, 0, 0), rotation))   : QMul(float3(0, 1, 0), rotation));
+    frame.right = normalize(_FrameCorrection ?  cross(frame.tangent, -frame.up)                         : QMul(float3(1, 0, 0), rotation));
+
+    _CurveFrames[id.x] = frame;
+}
